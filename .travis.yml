@@ -5,3 +5,4 @@ os:
 go:
 - 1.8
 - master
+script: sudo go test -v ./...
