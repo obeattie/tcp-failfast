@@ -9,7 +9,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func failFast(tcp *net.TCPConn, timeout time.Duration) error {
+func ff(tcp *net.TCPConn, timeout time.Duration) error {
 	fd, err := tcp.File()
 	if err != nil {
 		return err
