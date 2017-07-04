@@ -7,6 +7,6 @@ import (
 	"time"
 )
 
-func failFast(tcp *net.TCPConn, timeout time.Duration) error {
+func ff(tcp *net.TCPConn, timeout time.Duration) error {
 	return nil // Unsupported platform
 }

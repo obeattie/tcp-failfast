@@ -14,9 +14,12 @@ import (
 type TestServer struct {
 	iface        *water.Interface
 	radioSilence atomic.Value // bool
+	seq          uint32
 }
 
 func (t *TestServer) Init() {
+	t.radioSilence.Store(false)
+
 	iface, err := water.New(water.Config{
 		DeviceType: water.TUN})
 	if err != nil {
@@ -36,6 +39,8 @@ func (t *TestServer) Init() {
 				if n > 0 {
 					t.receive(b[:n])
 				}
+				log.Println("TUN EOF")
+				return
 			default:
 				log.Fatalf("Error reading from TUN: %v", err)
 			}
@@ -47,43 +52,60 @@ func (t *TestServer) SetRadioSilence(v bool) {
 	t.radioSilence.Store(v)
 }
 
+func (t *TestServer) writePacket(ls ...gopacket.SerializableLayer) {
+	buf := gopacket.NewSerializeBuffer()
+	opts := gopacket.SerializeOptions{
+		ComputeChecksums: true,
+		FixLengths:       true}
+	gopacket.SerializeLayers(buf, opts, ls...)
+	t.iface.Write(buf.Bytes())
+
+	op := gopacket.NewPacket(buf.Bytes(), layers.IPProtocolIPv4, gopacket.DecodeOptions{})
+	log.Println("➡️  " + op.String())
+}
+
 func (t *TestServer) receive(b []byte) {
 	p := gopacket.NewPacket(b, layers.IPProtocolIPv4, gopacket.DecodeOptions{})
 	if err := p.ErrorLayer(); err != nil {
 		log.Fatalf("Error decoding packet: %v", err)
 	}
-	log.Println(p.String())
+	log.Println("⬅️  " + p.String())
 
-	tcpIn := p.TransportLayer().(*layers.TCP)
+	tcpIn, ok := p.TransportLayer().(*layers.TCP)
+	if !ok {
+		return
+	}
 	ipIn := p.NetworkLayer().(*layers.IPv4)
+	ipOut := &(*ipIn)
+	ipOut.SrcIP, ipOut.DstIP = ipOut.DstIP, ipOut.SrcIP
 
-	if tcpIn.SYN { // SYN-ACK
-		ipOut := &layers.IPv4{
-			SrcIP:    ipIn.DstIP,
-			DstIP:    ipIn.SrcIP,
-			Protocol: layers.IPProtocolTCP,
-			TTL:      64}
+	if t.radioSilence.Load().(bool) {
+		log.Println("📻  🙊 Ignoring packet; radio silence")
+		return
+	}
+
+	if tcpIn.SYN { // Reply with SYN-ACK
+		t.seq++
 		tcpOut := &layers.TCP{
 			SrcPort: tcpIn.DstPort,
 			DstPort: tcpIn.SrcPort,
 			SYN:     true,
 			ACK:     true,
 			Ack:     tcpIn.Seq + 1,
-			Seq:     1000}
+			Window:  tcpIn.Window,
+			Seq:     t.seq}
 		tcpOut.SetNetworkLayerForChecksum(ipOut)
-
-		buf := gopacket.NewSerializeBuffer()
-		opts := gopacket.SerializeOptions{
-			ComputeChecksums: true,
-			FixLengths:       true}
-		gopacket.SerializeLayers(buf, opts, ipOut, tcpOut)
-		t.iface.Write(buf.Bytes())
-
-		op := gopacket.NewPacket(buf.Bytes(), layers.IPProtocolIPv4, gopacket.DecodeOptions{})
-		log.Println("➡️  " + op.String())
+		t.writePacket(ipOut, tcpOut)
+	} else if len(tcpIn.Payload) > 0 {
+		t.seq++
+		tcpOut := &layers.TCP{
+			SrcPort: tcpIn.DstPort,
+			DstPort: tcpIn.SrcPort,
+			ACK:     true,
+			Ack:     tcpIn.Seq + uint32(len(tcpIn.Payload)),
+			Window:  tcpIn.Window,
+			Seq:     t.seq}
+		tcpOut.SetNetworkLayerForChecksum(ipOut)
+		t.writePacket(ipOut, tcpOut)
 	}
-}
-
-func (t *TestServer) Close() {
-	t.iface.Close()
 }
