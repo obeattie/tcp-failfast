@@ -5,5 +5,4 @@ os:
 - osx
 go:
 - 1.8
-- 1.7
-script: sudo $(which go) test -v ./...
+script: sudo -E $(which go) test -v ./...
