@@ -8,5 +8,5 @@ import (
 )
 
 func ff(tcp *net.TCPConn, timeout time.Duration) error {
-	return nil // Unsupported platform
+	return ErrUnsupported
 }
