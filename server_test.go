@@ -65,6 +65,12 @@ func (t *TestServer) writePacket(ls ...gopacket.SerializableLayer) {
 }
 
 func (t *TestServer) receive(b []byte) {
+	// receive is called when we receive a raw IP protocol on the TUN interface.
+	// It implements TCP in an _extremely_ bare-bones and hacky fashion and
+	// knows how to do the SYN/SYN-ACK/ACK handshake and ACK inbound packets.
+	// When the test server is instructed to go dark, it will not respond to
+	// packets at all (ie. it will not respond to handshakes and it will not
+	// ack inbound packets.
 	p := gopacket.NewPacket(b, layers.IPProtocolIPv4, gopacket.DecodeOptions{})
 	if err := p.ErrorLayer(); err != nil {
 		log.Fatalf("Error decoding packet: %v", err)
