@@ -3,22 +3,30 @@ package tcpfailfast
 import (
 	"fmt"
 	"io"
-	"log"
 	"sync/atomic"
+	"testing"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/songgao/water"
 )
 
+func server(t *testing.T) *TestServer {
+	s := &TestServer{
+		t: t}
+	s.Init()
+	return s
+}
+
 type TestServer struct {
-	iface        *water.Interface
-	radioSilence atomic.Value // bool
-	seq          uint32
+	t      *testing.T
+	iface  *water.Interface
+	silent atomic.Value // bool
+	seq    uint32
 }
 
 func (t *TestServer) Init() {
-	t.radioSilence.Store(false)
+	t.silent.Store(false)
 
 	iface, err := water.New(water.Config{
 		DeviceType: water.TUN})
@@ -39,17 +47,22 @@ func (t *TestServer) Init() {
 				if n > 0 {
 					t.receive(b[:n])
 				}
-				log.Println("TUN EOF")
+				t.t.Logf("TUN EOF")
 				return
 			default:
-				log.Fatalf("Error reading from TUN: %v", err)
+				t.t.Logf("Error reading from TUN: %v", err)
+				return
 			}
 		}
 	}()
 }
 
-func (t *TestServer) SetRadioSilence(v bool) {
-	t.radioSilence.Store(v)
+func (t *TestServer) Close() {
+	t.iface.Close()
+}
+
+func (t *TestServer) Silence() {
+	t.silent.Store(true)
 }
 
 func (t *TestServer) writePacket(ls ...gopacket.SerializableLayer) {
@@ -61,7 +74,7 @@ func (t *TestServer) writePacket(ls ...gopacket.SerializableLayer) {
 	t.iface.Write(buf.Bytes())
 
 	op := gopacket.NewPacket(buf.Bytes(), layers.IPProtocolIPv4, gopacket.DecodeOptions{})
-	log.Println("➡️  " + op.String())
+	t.t.Logf("➡️  %v", op)
 }
 
 func (t *TestServer) receive(b []byte) {
@@ -73,9 +86,9 @@ func (t *TestServer) receive(b []byte) {
 	// ack inbound packets.
 	p := gopacket.NewPacket(b, layers.IPProtocolIPv4, gopacket.DecodeOptions{})
 	if err := p.ErrorLayer(); err != nil {
-		log.Fatalf("Error decoding packet: %v", err)
+		t.t.Fatalf("Error decoding packet: %v", err)
 	}
-	log.Println("⬅️  " + p.String())
+	t.t.Logf("⬅️  %v", p)
 
 	tcpIn, ok := p.TransportLayer().(*layers.TCP)
 	if !ok {
@@ -85,8 +98,8 @@ func (t *TestServer) receive(b []byte) {
 	ipOut := &(*ipIn)
 	ipOut.SrcIP, ipOut.DstIP = ipOut.DstIP, ipOut.SrcIP
 
-	if t.radioSilence.Load().(bool) {
-		log.Println("📻  🙊 Ignoring packet; radio silence")
+	if t.silent.Load().(bool) {
+		t.t.Log("📻  🙊 Ignoring packet; radio silence")
 		return
 	}
 
