@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	timeout = 2 * time.Second
+	timeout = 5 * time.Second
 	grace   = timeout * 2
 )
 
@@ -37,10 +37,13 @@ func TestFailFast(t *testing.T) {
 	// Go dark and see that the connection is closed within no more than 10 secs
 	s.Silence()
 	conn.Write([]byte("foobar\n"))
+	start := time.Now()
 	select {
 	case <-readErr(conn):
-		_, err = conn.Read(make([]byte, 4096)) // connection should be dead now
-		require.Equal(t, io.EOF, err)
+		require.True(t, time.Since(start) >= timeout, "connection dropped before timeout")
+
+		_, err = conn.Read(make([]byte, 4096))
+		require.Equal(t, io.EOF, err) // check we get the right error
 	case <-time.After(grace):
 		require.FailNow(t, "timed out waiting for connection termination")
 	}
