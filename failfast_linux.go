@@ -15,5 +15,5 @@ func ff(tcp *net.TCPConn, timeout time.Duration) error {
 		return err
 	}
 	const tcpUserTimeout = 0x12
-	return unix.SetsockoptInt(int(fd.Fd()), unix.IPPROTO_TCP, tcpUserTimeout, int(timeout/time.Second))
+	return unix.SetsockoptInt(int(fd.Fd()), unix.IPPROTO_TCP, tcpUserTimeout, int(timeout/time.Millisecond))
 }
