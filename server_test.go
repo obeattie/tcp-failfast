@@ -11,21 +11,21 @@ import (
 	"github.com/songgao/water"
 )
 
-func server(t *testing.T) *TestServer {
-	s := &TestServer{
+func server(t *testing.T) *testServer {
+	s := &testServer{
 		t: t}
 	s.Init()
 	return s
 }
 
-type TestServer struct {
+type testServer struct {
 	t      *testing.T
 	iface  *water.Interface
 	silent atomic.Value // bool
 	seq    uint32
 }
 
-func (t *TestServer) Init() {
+func (t *testServer) Init() {
 	t.silent.Store(false)
 
 	iface, err := water.New(water.Config{
@@ -57,15 +57,15 @@ func (t *TestServer) Init() {
 	}()
 }
 
-func (t *TestServer) Close() {
+func (t *testServer) Close() {
 	t.iface.Close()
 }
 
-func (t *TestServer) Silence() {
+func (t *testServer) Silence() {
 	t.silent.Store(true)
 }
 
-func (t *TestServer) writePacket(ls ...gopacket.SerializableLayer) {
+func (t *testServer) writePacket(ls ...gopacket.SerializableLayer) {
 	buf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{
 		ComputeChecksums: true,
@@ -77,7 +77,7 @@ func (t *TestServer) writePacket(ls ...gopacket.SerializableLayer) {
 	t.t.Logf("➡️  %v", op)
 }
 
-func (t *TestServer) receive(b []byte) {
+func (t *testServer) receive(b []byte) {
 	// receive is called when we receive a raw IP protocol on the TUN interface.
 	// It implements TCP in an _extremely_ bare-bones and hacky fashion and
 	// knows how to do the SYN/SYN-ACK/ACK handshake and ACK inbound packets.

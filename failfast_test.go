@@ -23,6 +23,7 @@ func readErr(conn net.Conn) <-chan error {
 	return c
 }
 
+// TestFailFast checks the behaviour of the FailFastTCP function
 func TestFailFast(t *testing.T) {
 	s := server(t)
 	defer s.Close()
@@ -49,6 +50,9 @@ func TestFailFast(t *testing.T) {
 	}
 }
 
+// TestControl checks that a connection is *not* closed early without calling
+// FailFastTCP (this is a sanity check to ensure that the platform doesn't
+// "fail fast" by default, which would invalidate the result of TestFailFast)
 func TestControl(t *testing.T) {
 	s := server(t)
 	defer s.Close()
