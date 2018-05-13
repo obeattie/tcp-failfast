@@ -3,6 +3,7 @@ package tcpfailfast
 import (
 	"io"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -21,6 +22,20 @@ func readErr(conn net.Conn) <-chan error {
 		c <- err
 	}()
 	return c
+}
+
+func countFDs() int {
+	d, err := os.Open("/proc/self/fd")
+	if err != nil {
+		panic(err)
+	}
+	defer d.Close()
+
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		panic(err)
+	}
+	return len(names)
 }
 
 // TestFailFast checks the behaviour of the FailFastTCP function
@@ -48,6 +63,18 @@ func TestFailFast(t *testing.T) {
 	case <-time.After(grace):
 		require.FailNow(t, "timed out waiting for connection termination")
 	}
+}
+
+// TestFailFastLeak checks FD leak
+func TestFailFastLeak(t *testing.T) {
+	before := countFDs()
+	conn, err := net.Dial("tcp", "8.8.8.8:53")
+	require.NoError(t, err, "error dialling")
+	conn.(*net.TCPConn).SetNoDelay(true)
+	require.NoError(t, FailFastTCP(conn.(*net.TCPConn), timeout), "error failfasting")
+	conn.Close()
+	after := countFDs()
+	require.Equal(t, before, after, "filedescriptor leaked")
 }
 
 // TestControl checks that a connection is *not* closed early without calling
