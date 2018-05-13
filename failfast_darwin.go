@@ -14,5 +14,7 @@ func ff(tcp *net.TCPConn, timeout time.Duration) error {
 	if err != nil {
 		return err
 	}
-	return unix.SetsockoptInt(int(fd.Fd()), unix.IPPROTO_TCP, unix.TCP_RXT_CONNDROPTIME, int(timeout/time.Second))
+	err = unix.SetsockoptInt(int(fd.Fd()), unix.IPPROTO_TCP, unix.TCP_RXT_CONNDROPTIME, int(timeout/time.Second))
+	fd.Close()
+	return err
 }
