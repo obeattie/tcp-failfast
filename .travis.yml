@@ -4,5 +4,5 @@ os:
 - linux
 - osx
 go:
-- 1.8
+- 1.10
 script: sudo -E $(which go) test -v ./...
